@@ -4013,7 +4013,7 @@ static const char *const *const mp_event_property_change[] = {
     E(MPV_EVENT_AUDIO_RECONFIG, "audio-format", "audio-codec", "audio-bitrate",
       "samplerate", "channels", "audio", "volume", "mute",
       "current-ao", "audio-codec-name", "audio-params",
-      "audio-out-params", "volume-max", "mixer-active"),
+      "audio-out-params", "volume-max", "mixer-active","audio-session-id"),
     E(MPV_EVENT_SEEK, "seeking", "core-idle", "eof-reached"),
     E(MPV_EVENT_PLAYBACK_RESTART, "seeking", "core-idle", "eof-reached"),
     E(MP_EVENT_METADATA_UPDATE, "metadata", "filtered-metadata", "media-title"),
