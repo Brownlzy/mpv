@@ -95,7 +95,7 @@ struct JNIAudioTrack {
     jmethodID writeV23;
     jmethodID writeShortV23;
     jmethodID writeBufferV21;
-//    jmethodID getAudioSessionId;
+    jmethodID getAudioSessionId;
     jmethodID getBufferSizeInFramesV23;
     jmethodID getPlaybackHeadPosition;
     jmethodID getTimestamp;
@@ -130,7 +130,7 @@ struct JNIAudioTrack {
     {"android/media/AudioTrack", "write", "([BIII)I", MP_JNI_METHOD, OFFSET(writeV23), 0},
     {"android/media/AudioTrack", "write", "([SIII)I", MP_JNI_METHOD, OFFSET(writeShortV23), 0},
     {"android/media/AudioTrack", "write", "(Ljava/nio/ByteBuffer;II)I", MP_JNI_METHOD, OFFSET(writeBufferV21), 1},
-//    {"android/media/AudioTrack", "getAudioSessionId", "()I", MP_JNI_METHOD, OFFSET(getAudioSessionId), 1},
+    {"android/media/AudioTrack", "getAudioSessionId", "()I", MP_JNI_METHOD, OFFSET(getAudioSessionId), 1},
     {"android/media/AudioTrack", "getBufferSizeInFrames", "()I", MP_JNI_METHOD, OFFSET(getBufferSizeInFramesV23), 0},
     {"android/media/AudioTrack", "getTimestamp", "(Landroid/media/AudioTimestamp;)Z", MP_JNI_METHOD, OFFSET(getTimestamp), 1},
     {"android/media/AudioTrack", "getPlaybackHeadPosition", "()I", MP_JNI_METHOD, OFFSET(getPlaybackHeadPosition), 1},
