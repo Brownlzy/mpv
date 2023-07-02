@@ -1754,6 +1754,14 @@ static int mp_property_ao(void *ctx, struct m_property *p, int action, void *arg
                                     mpctx->ao ? ao_get_name(mpctx->ao) : NULL);
 }
 
+/// Audio session id (RO)
+static int mp_property_audio_session_id(void *ctx, struct m_property *prop,
+                                  int action, void *arg)
+{
+    MPContext *mpctx = ctx;
+    return m_property_int_ro(action, arg, ao->au);
+}
+
 /// Audio delay (RW)
 static int mp_property_audio_delay(void *ctx, struct m_property *prop,
                                    int action, void *arg)
@@ -3852,6 +3860,7 @@ static const struct m_property mp_properties_base[] = {
     {"audio-device", mp_property_audio_device},
     {"audio-device-list", mp_property_audio_devices},
     {"current-ao", mp_property_ao},
+    {"audio-session-id", mp_property_audio_session_id},
 
     // Video
     {"video-out-params", mp_property_vo_imgparams},

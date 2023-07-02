@@ -68,6 +68,8 @@ struct ao {
     int buffer;
     double def_buffer;
     struct buffer_state *buffer_state;
+
+    int audio_session_id;
 };
 
 void init_buffer_pre(struct ao *ao);
