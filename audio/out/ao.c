@@ -435,6 +435,11 @@ const char *ao_get_name(struct ao *ao)
     return ao->driver->name;
 }
 
+int ao_get_session_id(struct ao *ao)
+{
+    return ao->audio_session_id;
+}
+
 const char *ao_get_description(struct ao *ao)
 {
     return ao->driver->description;
