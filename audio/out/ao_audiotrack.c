@@ -362,9 +362,10 @@ static int AudioTrack_New(struct ao *ao)
     if (!p->audiotrack)
         return -1;
 
+    int audioSessionId = -1;
     MP_VERBOSE(ao, "AudioTrack.getAudioSessionId Start\n");
      if(AudioTrack.getAudioSessionId) {
-         int audioSessionId = MP_JNI_CALL_INT(p->audiotrack,AudioTrack.getAudioSessionId);
+         audioSessionId = MP_JNI_CALL_INT(p->audiotrack,AudioTrack.getAudioSessionId);
          if(audioSessionId >= 0)
              ao->audio_session_id = audioSessionId;
          else
