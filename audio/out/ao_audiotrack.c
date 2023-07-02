@@ -362,15 +362,15 @@ static int AudioTrack_New(struct ao *ao)
     if (!p->audiotrack)
         return -1;
 
-    // if(AudioTrack.getAudioSessionId) {
-    //     int audioSessionId = MP_JNI_CALL_INT(audiotrack,AudioTrack.getAudioSessionId);
-    //     if(audioSessionId >= 0)
-    //         ao->audio_session_id = audioSessionId;
-    //     else 
-    //         ao->audio_session_id = -2;
-    // } else {
-    //     ao->audio_session_id = -3;
-    // }
+     if(AudioTrack.getAudioSessionId) {
+         int audioSessionId = MP_JNI_CALL_INT(p->audiotrack,AudioTrack.getAudioSessionId);
+         if(audioSessionId >= 0)
+             ao->audio_session_id = audioSessionId;
+         else
+             ao->audio_session_id = -2;
+     } else {
+         ao->audio_session_id = -3;
+     }
     
     return 0;
 }
