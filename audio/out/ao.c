@@ -197,7 +197,7 @@ static struct ao *ao_init(bool probing, struct mpv_global *global,
     struct ao *ao = ao_alloc(probing, global, wakeup_cb, wakeup_ctx, name);
     if (!ao)
         return NULL;
-    ao->audio_session_id = 0;
+    ao->audio_session_id = -1;
     ao->samplerate = samplerate;
     ao->channels = channels;
     ao->format = format;
