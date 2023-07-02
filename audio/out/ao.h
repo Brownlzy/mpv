@@ -96,6 +96,7 @@ void ao_uninit(struct ao *ao);
 void ao_get_format(struct ao *ao,
                    int *samplerate, int *format, struct mp_chmap *channels);
 const char *ao_get_name(struct ao *ao);
+int ao_get_session_id(struct ao *ao);
 const char *ao_get_description(struct ao *ao);
 bool ao_untimed(struct ao *ao);
 int ao_control(struct ao *ao, enum aocontrol cmd, void *arg);
