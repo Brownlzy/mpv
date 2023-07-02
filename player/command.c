@@ -1760,7 +1760,7 @@ static int mp_property_audio_session_id(void *ctx, struct m_property *prop,
 {
     MPContext *mpctx = ctx;
     return m_property_int_ro(action, arg, 
-                                    mpctx->ao ? ao_get_session_id(mpctx->ao) : NULL);
+                                    mpctx->ao ? ao_get_session_id(mpctx->ao) : 0);
 }
 
 /// Audio delay (RW)
