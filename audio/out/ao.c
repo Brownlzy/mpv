@@ -197,6 +197,7 @@ static struct ao *ao_init(bool probing, struct mpv_global *global,
     struct ao *ao = ao_alloc(probing, global, wakeup_cb, wakeup_ctx, name);
     if (!ao)
         return NULL;
+    ao->audio_session_id = -1;
     ao->samplerate = samplerate;
     ao->channels = channels;
     ao->format = format;
@@ -432,6 +433,11 @@ void ao_get_format(struct ao *ao,
 const char *ao_get_name(struct ao *ao)
 {
     return ao->driver->name;
+}
+
+int ao_get_session_id(struct ao *ao)
+{
+    return ao->audio_session_id;
 }
 
 const char *ao_get_description(struct ao *ao)

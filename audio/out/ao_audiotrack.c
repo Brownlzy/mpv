@@ -91,6 +91,7 @@ static struct JNIAudioTrack {
     jmethodID writeFloat;
     jmethodID writeShortV23;
     jmethodID writeBufferV21;
+    jmethodID getAudioSessionId;
     jmethodID getBufferSizeInFramesV23;
     jmethodID getPlaybackHeadPosition;
     jmethodID getTimestamp;
@@ -124,6 +125,7 @@ const static struct MPJniField AudioTrack_mapping[] = {
     {"write", "([FIII)I", MP_JNI_METHOD, OFFSET(writeFloat), 1},
     {"write", "([SIII)I", MP_JNI_METHOD, OFFSET(writeShortV23), 0},
     {"write", "(Ljava/nio/ByteBuffer;II)I", MP_JNI_METHOD, OFFSET(writeBufferV21), 1},
+    {"getAudioSessionId", "()I", MP_JNI_METHOD, OFFSET(getAudioSessionId), 1},
     {"getBufferSizeInFrames", "()I", MP_JNI_METHOD, OFFSET(getBufferSizeInFramesV23), 0},
     {"getTimestamp", "(Landroid/media/AudioTimestamp;)Z", MP_JNI_METHOD, OFFSET(getTimestamp), 1},
     {"getPlaybackHeadPosition", "()I", MP_JNI_METHOD, OFFSET(getPlaybackHeadPosition), 1},
@@ -360,6 +362,19 @@ static int AudioTrack_New(struct ao *ao)
     if (!p->audiotrack)
         return -1;
 
+    int audioSessionId = -1;
+    MP_VERBOSE(ao, "AudioTrack.getAudioSessionId Start\n");
+     if(AudioTrack.getAudioSessionId) {
+         audioSessionId = MP_JNI_CALL_INT(p->audiotrack,AudioTrack.getAudioSessionId);
+         if(audioSessionId >= 0)
+             ao->audio_session_id = audioSessionId;
+         else
+             ao->audio_session_id = -2;
+     } else {
+         ao->audio_session_id = -3;
+     }
+    MP_VERBOSE(ao, "AudioTrack.getAudioSessionId: %d\n", audioSessionId);
+    
     return 0;
 }
 

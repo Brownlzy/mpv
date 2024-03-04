@@ -1809,6 +1809,15 @@ static int mp_property_ao(void *ctx, struct m_property *p, int action, void *arg
     return m_property_strdup_ro(action, arg, mpctx->ao ? ao_get_name(mpctx->ao) : NULL);
 }
 
+/// Audio session id (RO)
+static int mp_property_audio_session_id(void *ctx, struct m_property *prop,
+                                  int action, void *arg)
+{
+    MPContext *mpctx = ctx;
+    return m_property_int_ro(action, arg, 
+                                    mpctx->ao ? ao_get_session_id(mpctx->ao) : -4);
+}
+
 /// Audio delay (RW)
 static int mp_property_audio_delay(void *ctx, struct m_property *prop,
                                    int action, void *arg)
@@ -3958,6 +3967,7 @@ static const struct m_property mp_properties_base[] = {
     {"audio-device", mp_property_audio_device},
     {"audio-device-list", mp_property_audio_devices},
     {"current-ao", mp_property_ao},
+    {"audio-session-id", mp_property_audio_session_id},
 
     // Video
     {"video-out-params", mp_property_vo_imgparams},
@@ -4112,7 +4122,7 @@ static const char *const *const mp_event_property_change[] = {
     E(MPV_EVENT_AUDIO_RECONFIG, "audio-format", "audio-codec", "audio-bitrate",
       "samplerate", "channels", "audio", "volume", "volume-gain", "mute",
       "current-ao", "audio-codec-name", "audio-params",
-      "audio-out-params", "volume-max", "volume-gain-min", "volume-gain-max", "mixer-active"),
+      "audio-out-params", "volume-max", "volume-gain-min", "volume-gain-max", "mixer-active","audio-session-id"),
     E(MPV_EVENT_SEEK, "seeking", "core-idle", "eof-reached"),
     E(MPV_EVENT_PLAYBACK_RESTART, "seeking", "core-idle", "eof-reached"),
     E(MP_EVENT_METADATA_UPDATE, "metadata", "filtered-metadata", "media-title"),
