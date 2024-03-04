@@ -1,5 +1,6 @@
 #include <libavutil/common.h>
 
+#include "common/msg.h"
 #include "options/m_option.h"
 #include "options/path.h"
 #include "osdep/subprocess.h"
@@ -98,7 +99,7 @@ void assert_memcmp_impl(const char *file, int line,
 }
 
 /* Stubs: see test_utils.h */
-struct mp_log *mp_null_log;
+struct mp_log *const mp_null_log;
 const char *mp_help_text;
 
 void mp_msg(struct mp_log *log, int lev, const char *format, ...) {};
@@ -106,10 +107,5 @@ int mp_msg_find_level(const char *s) {return 0;};
 int mp_msg_level(struct mp_log *log) {return 0;};
 void mp_write_console_ansi(void) {};
 void mp_set_avdict(AVDictionary **dict, char **kv) {};
-
-#ifndef WIN32_TESTS
-void mp_add_timeout(void) {};
-void mp_rel_time_to_timespec(void) {};
-void mp_time_us(void) {};
-void mp_time_us_to_timespec(void) {};
-#endif
+struct mp_log *mp_log_new(void *talloc_ctx, struct mp_log *parent,
+                          const char *name) { return NULL; };

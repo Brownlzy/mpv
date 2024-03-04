@@ -64,7 +64,7 @@ class CocoaCB: Common {
         mpv?.vo = vo
         if backendState == .needsInit {
             DispatchQueue.main.sync { self.initBackend(vo) }
-        } else {
+        } else if mpv?.opts.auto_window_resize ?? true {
             DispatchQueue.main.async {
                 self.updateWindowSize(vo)
                 self.layer?.update(force: true)
@@ -121,9 +121,7 @@ class CocoaCB: Common {
         }
 
         libmpv.setRenderICCProfile(colorSpace)
-        if #available(macOS 10.11, *) {
-            layer?.colorspace = colorSpace.cgColorSpace
-        }
+        layer?.colorspace = colorSpace.cgColorSpace
     }
 
     override func windowDidEndAnimation() {
@@ -211,7 +209,9 @@ class CocoaCB: Common {
         uninit()
         uninitCommon()
 
+        layer?.lockCglContext()
         libmpv.deinitRender()
+        layer?.unlockCglContext()
         libmpv.deinitMPV(destroy)
     }
 

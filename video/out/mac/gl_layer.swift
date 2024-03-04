@@ -82,8 +82,6 @@ class GLLayer: CAOpenGLLayer {
     enum Draw: Int { case normal = 1, atomic, atomicEnd }
     var draw: Draw = .normal
 
-    let queue: DispatchQueue = DispatchQueue(label: "io.mpv.queue.draw")
-
     var needsICCUpdate: Bool = false {
         didSet {
             if needsICCUpdate == true {
@@ -109,7 +107,7 @@ class GLLayer: CAOpenGLLayer {
         autoresizingMask = [.layerWidthSizable, .layerHeightSizable]
         backgroundColor = NSColor.black.cgColor
 
-        if #available(macOS 10.12, *), bufferDepth > 8 {
+        if bufferDepth > 8 {
             contentsFormat = .RGBA16Float
         }
 
@@ -199,6 +197,14 @@ class GLLayer: CAOpenGLLayer {
         }
     }
 
+    func lockCglContext() {
+        CGLLockContext(cglContext)
+    }
+
+    func unlockCglContext() {
+        CGLUnlockContext(cglContext)
+    }
+
     override func copyCGLPixelFormat(forDisplayMask mask: UInt32) -> CGLPixelFormatObj {
         return cglPixelFormat
     }
@@ -219,17 +225,19 @@ class GLLayer: CAOpenGLLayer {
         super.display()
         CATransaction.flush()
         if isUpdate && needsFlip {
+            lockCglContext()
             CGLSetCurrentContext(cglContext)
             if libmpv.isRenderUpdateFrame() {
                 libmpv.drawRender(NSZeroSize, bufferDepth, cglContext, skip: true)
             }
+            unlockCglContext()
         }
         displayLock.unlock()
     }
 
     func update(force: Bool = false) {
         if force { forceDraw = true }
-        queue.async {
+        DispatchQueue.main.async {
             if self.forceDraw || !self.inLiveResize {
                 self.needsFlip = true
                 self.display()

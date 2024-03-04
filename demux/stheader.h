@@ -49,7 +49,7 @@ struct sh_stream {
     bool visual_impaired_track; // container flag
     bool hearing_impaired_track;// container flag
     bool image;                 // video stream is an image
-    bool still_image;           // video stream contains still images
+    bool still_image;           // video consists of multiple sparse still images
     int hls_bitrate;
     int program_id;
 
@@ -105,7 +105,9 @@ struct mp_codec_params {
     int disp_w, disp_h;   // display size
     int rotate;           // intended display rotation, in degrees, [0, 359]
     int stereo_mode;      // mp_stereo3d_mode (0 if none/unknown)
-    struct mp_colorspace color; // colorspace info where available
+    struct pl_color_space color; // colorspace info where available
+    struct pl_color_repr repr;   // color representaion info where available
+    struct mp_rect crop;         // crop to be applied
 
     // STREAM_VIDEO + STREAM_AUDIO
     int bits_per_coded_sample;

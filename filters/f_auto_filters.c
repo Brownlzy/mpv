@@ -21,7 +21,7 @@
 struct deint_priv {
     struct mp_subfilter sub;
     int prev_imgfmt;
-    int prev_setting;
+    bool deinterlace_active;
     struct m_config_cache *opts;
 };
 
@@ -45,15 +45,18 @@ static void deint_process(struct mp_filter *f)
         return;
     }
 
+    struct mp_image *img = frame.data;
+    bool interlaced = img->fields & MP_IMGFIELD_INTERLACED;
+
     m_config_cache_update(p->opts);
     struct filter_opts *opts = p->opts->opts;
+    bool should_deinterlace = (opts->deinterlace == -1 && interlaced) ||
+                               opts->deinterlace == 1;
 
-    if (!opts->deinterlace)
+    if (!should_deinterlace)
         mp_subfilter_destroy(&p->sub);
 
-    struct mp_image *img = frame.data;
-
-    if (img->imgfmt == p->prev_imgfmt && p->prev_setting == opts->deinterlace) {
+    if (img->imgfmt == p->prev_imgfmt && p->deinterlace_active == should_deinterlace) {
         mp_subfilter_continue(&p->sub);
         return;
     }
@@ -64,8 +67,8 @@ static void deint_process(struct mp_filter *f)
     assert(!p->sub.filter);
 
     p->prev_imgfmt = img->imgfmt;
-    p->prev_setting = opts->deinterlace;
-    if (!p->prev_setting) {
+    p->deinterlace_active = should_deinterlace;
+    if (!p->deinterlace_active) {
         mp_subfilter_continue(&p->sub);
         return;
     }
@@ -81,13 +84,11 @@ static void deint_process(struct mp_filter *f)
     } else if (img->imgfmt == IMGFMT_CUDA) {
         char *args[] = {"mode", "send_field", NULL};
         p->sub.filter =
-            mp_create_user_filter(f, MP_OUTPUT_CHAIN_VIDEO, "yadif_cuda", args);
-#if HAVE_VULKAN_INTEROP
+            mp_create_user_filter(f, MP_OUTPUT_CHAIN_VIDEO, "bwdif_cuda", args);
     } else if (img->imgfmt == IMGFMT_VULKAN) {
         char *args[] = {"mode", "send_field", NULL};
         p->sub.filter =
             mp_create_user_filter(f, MP_OUTPUT_CHAIN_VIDEO, "bwdif_vulkan", args);
-#endif
     } else if (img->imgfmt == IMGFMT_VAAPI) {
         char *args[] = {"deint", "motion-adaptive",
                         "interlaced-only", "yes", NULL};
@@ -107,7 +108,7 @@ static void deint_process(struct mp_filter *f)
         struct mp_autoconvert *ac = mp_autoconvert_create(subf);
         if (ac) {
             filters[0] = ac->f;
-            // We know vf_yadif does not support hw inputs.
+            // We know vf_bwdif does not support hw inputs.
             mp_autoconvert_add_all_sw_imgfmts(ac);
 
             if (!mp_autoconvert_probe_input_video(ac, img)) {
@@ -121,7 +122,7 @@ static void deint_process(struct mp_filter *f)
 
         char *args[] = {"mode", "send_field", NULL};
         filters[1] =
-            mp_create_user_filter(subf, MP_OUTPUT_CHAIN_VIDEO, "yadif", args);
+            mp_create_user_filter(subf, MP_OUTPUT_CHAIN_VIDEO, "bwdif", args);
 
         mp_chain_filters(subf->ppins[0], subf->ppins[1], filters, 2);
         p->sub.filter = subf;
@@ -164,6 +165,12 @@ static const struct mp_filter_info deint_filter = {
     .reset = deint_reset,
     .destroy = deint_destroy,
 };
+
+bool mp_deint_active(struct mp_filter *f)
+{
+    struct deint_priv *p = f->priv;
+    return p->deinterlace_active;
+}
 
 struct mp_filter *mp_deint_create(struct mp_filter *parent)
 {

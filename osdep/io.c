@@ -146,7 +146,7 @@ char *mp_to_utf8(void *talloc_ctx, const wchar_t *s)
 
 #include <io.h>
 #include <fcntl.h>
-#include <pthread.h>
+#include "osdep/threads.h"
 
 static void set_errno_from_lasterror(void)
 {
@@ -484,6 +484,20 @@ int mp_creat(const char *filename, int mode)
     return mp_open(filename, _O_CREAT | _O_WRONLY | _O_TRUNC, mode);
 }
 
+int mp_rename(const char *oldpath, const char *newpath)
+{
+    wchar_t *woldpath = mp_from_utf8(NULL, oldpath),
+        *wnewpath = mp_from_utf8(NULL, newpath);
+    BOOL ok = MoveFileExW(woldpath, wnewpath, MOVEFILE_REPLACE_EXISTING);
+    talloc_free(woldpath);
+    talloc_free(wnewpath);
+    if (!ok) {
+        set_errno_from_lasterror();
+        return -1;
+    }
+    return 0;
+}
+
 FILE *mp_fopen(const char *filename, const char *mode)
 {
     if (!mode[0]) {
@@ -514,8 +528,7 @@ FILE *mp_fopen(const char *filename, const char *mode)
     for (const char *pos = mode + 1; *pos; pos++) {
         switch (*pos) {
         case '+': rwmode = _O_RDWR;  break;
-        case 'x': oflags |= _O_EXCL; break;
-        // Ignore unknown flags (glibc does too)
+        // Ignore unknown flags
         default: break;
         }
     }
@@ -544,7 +557,9 @@ FILE *mp_fopen(const char *filename, const char *mode)
 // Thus we need MP_PATH_MAX as the UTF-8/char version of PATH_MAX.
 // Also make sure there's free space for the terminating \0.
 // (For codepoints encoded as UTF-16 surrogate pairs, UTF-8 has the same length.)
-#define MP_PATH_MAX (FILENAME_MAX * 3 + 1)
+// Lastly, note that neither _wdirent nor WIN32_FIND_DATA can store filenames
+// longer than this, so long-path support for readdir() is impossible.
+#define MP_FILENAME_MAX (FILENAME_MAX * 3 + 1)
 
 struct mp_dir {
     DIR crap;   // must be first member
@@ -554,9 +569,9 @@ struct mp_dir {
         // dirent has space only for FILENAME_MAX bytes. _wdirent has space for
         // FILENAME_MAX wchar_t, which might end up bigger as UTF-8 in some
         // cases. Guarantee we can always hold _wdirent.d_name converted to
-        // UTF-8 (see MP_PATH_MAX).
+        // UTF-8 (see above).
         // This works because dirent.d_name is the last member of dirent.
-        char space[MP_PATH_MAX];
+        char space[MP_FILENAME_MAX];
     };
 };
 
@@ -602,6 +617,14 @@ int mp_mkdir(const char *path, int mode)
 {
     wchar_t *wpath = mp_from_utf8(NULL, path);
     int res = _wmkdir(wpath);
+    talloc_free(wpath);
+    return res;
+}
+
+int mp_unlink(const char *path)
+{
+    wchar_t *wpath = mp_from_utf8(NULL, path);
+    int res = _wunlink(wpath);
     talloc_free(wpath);
     return res;
 }
@@ -670,8 +693,8 @@ static void init_getenv(void)
 
 char *mp_getenv(const char *name)
 {
-    static pthread_once_t once_init_getenv = PTHREAD_ONCE_INIT;
-    pthread_once(&once_init_getenv, init_getenv);
+    static mp_once once_init_getenv = MP_STATIC_ONCE_INITIALIZER;
+    mp_exec_once(&once_init_getenv, init_getenv);
     // Copied from musl, http://git.musl-libc.org/cgit/musl/tree/COPYRIGHT
     // Copyright © 2005-2013 Rich Felker, standard MIT license
     int i;
@@ -697,6 +720,90 @@ off_t mp_lseek(int fd, off_t offset, int whence)
         return (off_t)-1;
     }
     return _lseeki64(fd, offset, whence);
+}
+
+_Thread_local
+static struct {
+    DWORD errcode;
+    char *errstring;
+} mp_dl_result = {
+    .errcode = 0,
+    .errstring = NULL
+};
+
+static void mp_dl_free(void)
+{
+    if (mp_dl_result.errstring != NULL) {
+        talloc_free(mp_dl_result.errstring);
+    }
+}
+
+static void mp_dl_init(void)
+{
+    atexit(mp_dl_free);
+}
+
+void *mp_dlopen(const char *filename, int flag)
+{
+    HMODULE lib = NULL;
+    void *ta_ctx = talloc_new(NULL);
+    wchar_t *wfilename = mp_from_utf8(ta_ctx, filename);
+
+    DWORD len = GetFullPathNameW(wfilename, 0, NULL, NULL);
+    if (!len)
+        goto err;
+
+    wchar_t *path = talloc_array(ta_ctx, wchar_t, len);
+    len = GetFullPathNameW(wfilename, len, path, NULL);
+    if (!len)
+        goto err;
+
+    lib = LoadLibraryW(path);
+
+err:
+    talloc_free(ta_ctx);
+    mp_dl_result.errcode = GetLastError();
+    return (void *)lib;
+}
+
+void *mp_dlsym(void *handle, const char *symbol)
+{
+    FARPROC addr = GetProcAddress((HMODULE)handle, symbol);
+    mp_dl_result.errcode = GetLastError();
+    return (void *)addr;
+}
+
+char *mp_dlerror(void)
+{
+    static mp_once once_init_dlerror = MP_STATIC_ONCE_INITIALIZER;
+    mp_exec_once(&once_init_dlerror, mp_dl_init);
+    mp_dl_free();
+
+    if (mp_dl_result.errcode == 0)
+        return NULL;
+
+    // convert error code to a string message
+    LPWSTR werrstring = NULL;
+    FormatMessageW(
+        FORMAT_MESSAGE_FROM_SYSTEM
+            | FORMAT_MESSAGE_IGNORE_INSERTS
+            | FORMAT_MESSAGE_ALLOCATE_BUFFER,
+        NULL,
+        mp_dl_result.errcode,
+        MAKELANGID(LANG_NEUTRAL, SUBLANG_NEUTRAL),
+        (LPWSTR) &werrstring,
+        0,
+        NULL);
+    mp_dl_result.errcode = 0;
+
+    if (werrstring) {
+        mp_dl_result.errstring = mp_to_utf8(NULL, werrstring);
+        LocalFree(werrstring);
+    }
+
+    return mp_dl_result.errstring == NULL
+        ? "unknown error"
+        : mp_dl_result.errstring;
 }
 
 #if HAVE_UWP
@@ -792,29 +899,3 @@ void freelocale(locale_t locobj)
 }
 
 #endif // __MINGW32__
-
-int mp_mkostemps(char *template, int suffixlen, int flags)
-{
-    size_t len = strlen(template);
-    char *t = len >= 6 + suffixlen ? &template[len - (6 + suffixlen)] : NULL;
-    if (!t || strncmp(t, "XXXXXX", 6) != 0) {
-        errno = EINVAL;
-        return -1;
-    }
-
-    for (size_t fuckshit = 0; fuckshit < UINT32_MAX; fuckshit++) {
-        // Using a random value may make it require fewer iterations (even if
-        // not truly random; just a counter would be sufficient).
-        size_t fuckmess = mp_rand_next();
-        char crap[7] = "";
-        snprintf(crap, sizeof(crap), "%06zx", fuckmess);
-        memcpy(t, crap, 6);
-
-        int res = open(template, O_RDWR | O_CREAT | O_EXCL | flags, 0600);
-        if (res >= 0 || errno != EEXIST)
-            return res;
-    }
-
-    errno = EEXIST;
-    return -1;
-}

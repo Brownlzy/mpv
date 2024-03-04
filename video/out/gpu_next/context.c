@@ -88,6 +88,7 @@ static bool d3d11_pl_init(struct vo *vo, struct gpu_ctx *ctx,
     ctx->swapchain = pl_d3d11_create_swapchain(d3d11,
         pl_d3d11_swapchain_params(
             .swapchain = swapchain,
+            .disable_10bit_sdr = ra_d3d11_ctx_prefer_8bit_output_format(ctx->ra_ctx),
         )
     );
     if (!ctx->swapchain) {
@@ -112,7 +113,6 @@ struct gpu_ctx *gpu_ctx_create(struct vo *vo, struct gl_video_opts *gl_opts)
     ctx->log = vo->log;
 
     struct ra_ctx_opts *ctx_opts = mp_get_config_group(ctx, vo->global, &ra_ctx_conf);
-    ctx_opts->want_alpha = gl_opts->alpha_mode == ALPHA_YES;
     ctx->ra_ctx = ra_ctx_create(vo, *ctx_opts);
     if (!ctx->ra_ctx)
         goto err_out;

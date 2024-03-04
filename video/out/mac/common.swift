@@ -107,13 +107,16 @@ class Common: NSObject {
 
         titleBar = TitleBar(frame: wr, window: window, common: self)
 
+        let maximized = Bool(mpv.opts.window_maximized)
         let minimized = Bool(mpv.opts.window_minimized)
         window.isRestorable = false
         window.isReleasedWhenClosed = false
-        window.setMaximized(minimized ? false : Bool(mpv.opts.window_maximized))
+        window.setMaximized((minimized || !maximized) ? window.isZoomed : maximized)
         window.setMinimized(minimized)
         window.makeMain()
         window.makeKey()
+
+        view.layer?.contentsScale = window.backingScaleFactor
 
         if !minimized {
             window.orderFront(nil)
@@ -139,6 +142,7 @@ class Common: NSObject {
         view.layer = layer
         view.wantsLayer = true
         view.layerContentsPlacement = .scaleProportionallyToFit
+        layer.delegate = view
     }
 
     func initWindowState() {
@@ -164,17 +168,6 @@ class Common: NSObject {
         view?.removeFromSuperview()
     }
 
-    let linkCallback: CVDisplayLinkOutputCallback = {
-                    (displayLink: CVDisplayLink,
-                           inNow: UnsafePointer<CVTimeStamp>,
-                    inOutputTime: UnsafePointer<CVTimeStamp>,
-                         flagsIn: CVOptionFlags,
-                        flagsOut: UnsafeMutablePointer<CVOptionFlags>,
-              displayLinkContext: UnsafeMutableRawPointer?) -> CVReturn in
-        let com = unsafeBitCast(displayLinkContext, to: Common.self)
-        return com.displayLinkCallback(displayLink, inNow, inOutputTime, flagsIn, flagsOut)
-    }
-
     func displayLinkCallback(_ displayLink: CVDisplayLink,
                                    _ inNow: UnsafePointer<CVTimeStamp>,
                             _ inOutputTime: UnsafePointer<CVTimeStamp>,
@@ -195,12 +188,8 @@ class Common: NSObject {
         }
 
         CVDisplayLinkSetCurrentCGDisplay(link, screen.displayID)
-        if #available(macOS 10.12, *) {
-            CVDisplayLinkSetOutputHandler(link) { link, now, out, inFlags, outFlags -> CVReturn in
-                return self.displayLinkCallback(link, now, out, inFlags, outFlags)
-            }
-        } else {
-            CVDisplayLinkSetOutputCallback(link, linkCallback, MPVHelper.bridge(obj: self))
+        CVDisplayLinkSetOutputHandler(link) { link, now, out, inFlags, outFlags -> CVReturn in
+            return self.displayLinkCallback(link, now, out, inFlags, outFlags)
         }
         CVDisplayLinkStart(link)
     }
@@ -411,7 +400,7 @@ class Common: NSObject {
 
     func getScreenBy(name screenName: String?) -> NSScreen? {
         for screen in NSScreen.screens {
-            if screen.displayName == screenName {
+            if screen.localizedName == screenName {
                 return screen
             }
         }
@@ -567,6 +556,18 @@ class Common: NSObject {
                     DispatchQueue.main.async {
                         self.window?.setMaximized(Bool(mpv.opts.window_maximized))
                     }
+                case MPVHelper.getPointer(&mpv.optsPtr.pointee.cursor_passthrough):
+                    DispatchQueue.main.async {
+                        self.window?.ignoresMouseEvents = mpv.opts.cursor_passthrough
+                    }
+                case MPVHelper.getPointer(&mpv.optsPtr.pointee.geometry): fallthrough
+                case MPVHelper.getPointer(&mpv.optsPtr.pointee.autofit): fallthrough
+                case MPVHelper.getPointer(&mpv.optsPtr.pointee.autofit_smaller): fallthrough
+                case MPVHelper.getPointer(&mpv.optsPtr.pointee.autofit_larger):
+                    DispatchQueue.main.async {
+                        let (_, _, wr) = self.getInitProperties(vo)
+                        self.window?.updateFrame(wr)
+                    }
                 default:
                     break
                 }
@@ -575,6 +576,13 @@ class Common: NSObject {
         case VOCTRL_GET_DISPLAY_FPS:
             let fps = data!.assumingMemoryBound(to: CDouble.self)
             fps.pointee = currentFps()
+            return VO_TRUE
+        case VOCTRL_GET_WINDOW_ID:
+            guard let window = window else {
+                return VO_NOTAVAIL
+            }
+            let wid = data!.assumingMemoryBound(to: Int64.self)
+            wid.pointee = unsafeBitCast(window, to: Int64.self)
             return VO_TRUE
         case VOCTRL_GET_HIDPI_SCALE:
             let scaleFactor = data!.assumingMemoryBound(to: CDouble.self)
@@ -643,7 +651,7 @@ class Common: NSObject {
             let dnames = data!.assumingMemoryBound(to: UnsafeMutablePointer<UnsafeMutablePointer<Int8>?>?.self)
             var array: UnsafeMutablePointer<UnsafeMutablePointer<Int8>?>? = nil
             var count: Int32 = 0
-            let displayName = getCurrentScreen()?.displayName ?? "Unknown"
+            let displayName = getCurrentScreen()?.localizedName ?? "Unknown"
 
             SWIFT_TARRAY_STRING_APPEND(nil, &array, &count, ta_xstrdup(nil, displayName))
             SWIFT_TARRAY_STRING_APPEND(nil, &array, &count, nil)
@@ -665,10 +673,9 @@ class Common: NSObject {
             focus.pointee = NSApp.isActive
             return VO_TRUE
         case VOCTRL_UPDATE_WINDOW_TITLE:
-            let titleData = data!.assumingMemoryBound(to: Int8.self)
+            let title = String(cString: data!.assumingMemoryBound(to: CChar.self))
             DispatchQueue.main.async {
-                let title = NSString(utf8String: titleData) as String?
-                self.title = title ?? "Unknown Title"
+                self.title = title
             }
             return VO_TRUE
         default:
